@@ -1,12 +1,12 @@
 services:
-  agritec_portal_name:
+  api_version:
     build:
       context: .
       dockerfile: dockerfile.prod
-    image: agritec/template:1.0.0
+    image: drglasdou/nest_gql:${APP_VERSION:-1.0.0}
 
-  agritec_portal_latest:
+  api_latest:
     build:
       context: .
       dockerfile: dockerfile.prod
-    image: agritec/template:latest
+    image: drglasdou/nest_gql:latest

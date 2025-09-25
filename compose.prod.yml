@@ -1,7 +1,7 @@
 services:
   api:
     container_name: api
-    image: agritec/template:latest
+    image: drglasdou/nest_gql:latest
     build:
       context: .
       dockerfile: dockerfile.prod

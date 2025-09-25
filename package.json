@@ -1,7 +1,7 @@
 {
-  "name": "rest",
+  "name": "gql",
   "version": "1.0.0",
-  "description": "Nest REST template",
+  "description": "Nest GraphQL template",
   "author": "dr.glasdou",
   "private": true,
   "license": "MIT",

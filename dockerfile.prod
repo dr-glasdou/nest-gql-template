@@ -1,71 +1,115 @@
-# Base dependencies layer
-FROM node:24.4.1-alpine3.21 AS base
+# Production Dockerfile for NestJS GraphQL application
+# Multi-stage build for optimized production image
 
+# Base dependencies layer - installs production dependencies
+FROM node:24-alpine AS base
+
+# Set working directory for the application
 WORKDIR /usr/src/app
 
-COPY package.json package-lock.json ./
+# Install pnpm package manager globally
+RUN npm install -g pnpm
 
-# Install dependencies, skipping lifecycle scripts (like lefthook)
-RUN npm ci --ignore-scripts
+# Copy package files for dependency installation
+COPY package.json pnpm-lock.yaml ./
 
-# Builder - build the application
-FROM node:24.4.1-alpine3.21 AS build
+# Install production dependencies only, skipping lifecycle scripts
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
+# Builder stage - compiles the TypeScript application
+FROM node:24-alpine AS build
+
+# Set working directory
 WORKDIR /usr/src/app
 
+# Install pnpm package manager globally
+RUN npm install -g pnpm
+
+# Copy installed node_modules from base stage
 COPY --from=base /usr/src/app/node_modules ./node_modules
+
+# Copy all source files
 COPY . .
 
-# Build the NestJS application
-RUN npm run build
+# Generate Prisma client
+RUN pnpm prisma generate
 
-# Prune development dependencies
-RUN npm prune --omit=dev
+# Build the NestJS application (compile TypeScript to JavaScript)
+RUN pnpm run build
 
-# Remove unnecessary files from node_modules to further reduce size
-RUN find ./node_modules -name "*.md" -type f -delete \
-  && find ./node_modules -name "*.ts" -type f -delete \
-  && find ./node_modules -name "*.map" -type f -delete \
-  && find ./node_modules -name "test" -type d -exec rm -rf {} + \
-  && find ./node_modules -name "tests" -type d -exec rm -rf {} +
+# Remove development dependencies to reduce image size
+ENV CI=true
+RUN pnpm prune --prod && \
+  # More aggressive cleanup of node_modules
+  find ./node_modules -name "*.md" -type f -delete && \
+  find ./node_modules -name "*.ts" -type f -delete && \
+  find ./node_modules -name "*.map" -type f -delete && \
+  find ./node_modules -name "*.test.*" -type f -delete && \
+  find ./node_modules -name "*.spec.*" -type f -delete && \
+  find ./node_modules -name "test" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "tests" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "example" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "examples" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "benchmark" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "benchmarks" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "docs" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "doc" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name ".github" -type d -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -name "CHANGELOG*" -type f -delete && \
+  find ./node_modules -name "README*" -type f -delete && \
+  find ./node_modules -name "LICENSE*" -type f -delete && \
+  find ./node_modules -name ".eslintrc*" -type f -delete && \
+  find ./node_modules -name ".prettierrc*" -type f -delete && \
+  find ./node_modules -name ".babelrc*" -type f -delete && \
+  find ./node_modules -name "Makefile*" -type f -delete && \
+  # Remove source files and other unnecessary files after build
+  rm -rf src/ test/ .env* && \
+  find ./node_modules -name "*.config.*" -type f -delete
 
-# Final image
-FROM node:24.4.1-alpine3.21 AS prod
+# System dependencies stage - installs required system libraries
+FROM alpine:latest AS sys-deps
 
-# Install system dependencies required for PDF processing
+# Install only essential system dependencies
 RUN apk add --no-cache \
-  fontconfig \
-  freetype \
-  harfbuzz \
   ca-certificates \
-  ttf-freefont \
-  # Add timezone data
   tzdata \
-  # Add wget for healthcheck
-  wget
+  wget && \
+  # Clean up apk cache to reduce image size
+  rm -rf /var/cache/apk/*
 
+# Final production image - minimal runtime environment
+FROM node:24-alpine AS final
+
+# Copy system dependencies from sys-deps stage
+COPY --from=sys-deps /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=sys-deps /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=sys-deps /usr/bin/wget /usr/bin/
+
+# Set working directory
 WORKDIR /usr/src/app
 
-# Copy only the necessary files for production
+# Copy only the necessary files for production runtime
 COPY --from=build /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/dist ./dist
 COPY --from=build /usr/src/app/package.json ./package.json
 
-# Set environment variables
+# Set production environment variables
 ENV NODE_ENV=production \
   PORT=3000 \
   TZ=America/Guatemala
-# Add a health check
+
+# Add health check to monitor application status
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost:3000/ || exit 1
 
-# Set proper ownership for all directories
+# Set proper ownership for all directories to the node user
 RUN chown -R node:node /usr/src/app
 
 # Switch to non-root user for better security
 USER node
 
+# Expose the application port
 EXPOSE 3000
 
-# Use an entrypoint script to handle signals properly
+# Start the application
 CMD ["node", "dist/main.js"]
