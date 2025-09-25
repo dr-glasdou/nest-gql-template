@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HealthDto } from './dto';
+import type { HealthDto } from './dto';
 
 @Injectable()
 export class HealthService {

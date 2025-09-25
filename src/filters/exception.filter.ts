@@ -1,8 +1,8 @@
 import {
-  ArgumentsHost,
+  type ArgumentsHost,
   BadRequestException,
   Catch,
-  ExceptionFilter,
+  type ExceptionFilter,
   HttpException,
   HttpStatus,
   Logger,
@@ -19,7 +19,7 @@ interface ValidationErrorResponse {
 export class ExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(ExceptionsFilter.name);
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: unknown, _host: ArgumentsHost) {
     this.logger.error(`Exception caught: ${JSON.stringify(exception)}`);
 
     // Handle existing GraphQL errors

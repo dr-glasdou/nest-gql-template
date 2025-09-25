@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { GraphQLError } from 'graphql';
 
 export class CustomException extends GraphQLError {
