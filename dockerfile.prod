@@ -1,115 +1,112 @@
-# Production Dockerfile for NestJS GraphQL application
-# Multi-stage build for optimized production image
+# Builder stage - compiles the TypeScript application
+FROM node:24-alpine AS builder
 
-# Base dependencies layer - installs production dependencies
-FROM node:24-alpine AS base
-
-# Set working directory for the application
 WORKDIR /usr/src/app
 
-# Install pnpm package manager globally
-RUN npm install -g pnpm
+# Enable corepack and install pnpm (more efficient than npm install -g)
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package files for dependency installation
+# Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install production dependencies only, skipping lifecycle scripts
-RUN pnpm install --frozen-lockfile --ignore-scripts
+# Install ALL dependencies (including dev dependencies needed for build)
+RUN pnpm install --frozen-lockfile
 
-# Builder stage - compiles the TypeScript application
-FROM node:24-alpine AS build
-
-# Set working directory
-WORKDIR /usr/src/app
-
-# Install pnpm package manager globally
-RUN npm install -g pnpm
-
-# Copy installed node_modules from base stage
-COPY --from=base /usr/src/app/node_modules ./node_modules
-
-# Copy all source files
+# Copy source files and Prisma config
 COPY . .
 
-# Generate Prisma client
-RUN pnpm prisma generate
+# Generate Prisma client for linux-musl platform (alpine/distroless compatible)
+# Output will be in generated/client (as per schema.prisma config)
+ENV PRISMA_CLI_BINARY_TARGETS="linux-musl-arm64-openssl-3.0.x,linux-musl-openssl-3.0.x"
 
-# Build the NestJS application (compile TypeScript to JavaScript)
-RUN pnpm run build
+RUN pnpm prisma generate && \
+  pnpm run build && \
+  # Remove non-linux engines from generated client
+  find ./generated/client -type f -name "*.node" ! -name "*linux-musl*" -delete 2>/dev/null || true
 
-# Remove development dependencies to reduce image size
-ENV CI=true
-RUN pnpm prune --prod && \
-  # More aggressive cleanup of node_modules
+# Production dependencies stage - uses pnpm for space efficiency
+FROM node:24-alpine AS deps
+
+WORKDIR /usr/src/app
+
+# Enable corepack and install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install ONLY production dependencies with pnpm
+# Remove --shamefully-hoist and use --no-optional for better compatibility
+RUN pnpm install --prod --frozen-lockfile --no-optional && \
+  # Remove Prisma CLI first (not needed in production)
+  rm -rf ./node_modules/prisma && \
+  # Remove @prisma/engines directory (engines are bundled with client)
+  rm -rf ./node_modules/@prisma/engines && \
+  # Remove all Prisma engine binaries except the one we need
+  find ./node_modules/@prisma/client -type f -name "*.node" ! -name "*linux-musl-*" -delete 2>/dev/null || true && \
+  find ./node_modules/.prisma/client -type f -name "*.node" ! -name "*linux-musl-*" -delete 2>/dev/null || true
+
+# Cleanup stage - separate stage for aggressive cleanup to improve caching
+FROM deps AS deps-clean
+
+WORKDIR /usr/src/app
+
+RUN set -ex && \
+  # Remove documentation files (safe)
   find ./node_modules -name "*.md" -type f -delete && \
-  find ./node_modules -name "*.ts" -type f -delete && \
-  find ./node_modules -name "*.map" -type f -delete && \
-  find ./node_modules -name "*.test.*" -type f -delete && \
-  find ./node_modules -name "*.spec.*" -type f -delete && \
-  find ./node_modules -name "test" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name "tests" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name "example" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name "examples" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name "benchmark" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name "benchmarks" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name "docs" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name "doc" -type d -exec rm -rf {} + 2>/dev/null || true && \
-  find ./node_modules -name ".github" -type d -exec rm -rf {} + 2>/dev/null || true && \
   find ./node_modules -name "CHANGELOG*" -type f -delete && \
   find ./node_modules -name "README*" -type f -delete && \
   find ./node_modules -name "LICENSE*" -type f -delete && \
-  find ./node_modules -name ".eslintrc*" -type f -delete && \
-  find ./node_modules -name ".prettierrc*" -type f -delete && \
-  find ./node_modules -name ".babelrc*" -type f -delete && \
-  find ./node_modules -name "Makefile*" -type f -delete && \
-  # Remove source files and other unnecessary files after build
-  rm -rf src/ test/ .env* && \
-  find ./node_modules -name "*.config.*" -type f -delete
+  find ./node_modules -name "LICENCE*" -type f -delete && \
+  # Remove source maps (safe)
+  find ./node_modules -name "*.map" -type f -delete && \
+  # Remove test files (safe)
+  find ./node_modules -name "*.test.*" -type f -delete && \
+  find ./node_modules -name "*.spec.*" -type f -delete && \
+  find ./node_modules -type d -name "__tests__" -exec rm -rf {} + 2>/dev/null || true && \
+  # Remove example directories (safe)
+  find ./node_modules -type d -name "example" -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true && \
+  # Remove benchmark directories (safe)
+  find ./node_modules -type d -name "benchmark" -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -type d -name "benchmarks" -exec rm -rf {} + 2>/dev/null || true && \
+  # Remove documentation directories (safe)
+  find ./node_modules -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -type d -name "doc" -exec rm -rf {} + 2>/dev/null || true && \
+  # Remove CI/CD directories (safe)
+  find ./node_modules -type d -name ".github" -exec rm -rf {} + 2>/dev/null || true && \
+  find ./node_modules -type d -name ".circleci" -exec rm -rf {} + 2>/dev/null || true && \
+  # Clean pnpm cache and store
+  pnpm store prune 2>/dev/null || true && \
+  rm -rf /root/.local/share/pnpm /root/.pnpm-store /root/.cache /tmp/*
 
-# System dependencies stage - installs required system libraries
-FROM alpine:latest AS sys-deps
+# Final production image - minimal runtime environment using distroless
+FROM gcr.io/distroless/nodejs24-debian12:nonroot AS production
 
-# Install only essential system dependencies
-RUN apk add --no-cache \
-  ca-certificates \
-  tzdata \
-  wget && \
-  # Clean up apk cache to reduce image size
-  rm -rf /var/cache/apk/*
-
-# Final production image - minimal runtime environment
-FROM node:24-alpine AS final
-
-# Copy system dependencies from sys-deps stage
-COPY --from=sys-deps /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=sys-deps /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=sys-deps /usr/bin/wget /usr/bin/
-
-# Set working directory
 WORKDIR /usr/src/app
 
-# Copy only the necessary files for production runtime
-COPY --from=build /usr/src/app/node_modules ./node_modules
-COPY --from=build /usr/src/app/dist ./dist
-COPY --from=build /usr/src/app/package.json ./package.json
+# Copy cleaned production dependencies and built application
+COPY --from=deps-clean --chown=nonroot:nonroot /usr/src/app/node_modules ./node_modules
+COPY --from=builder --chown=nonroot:nonroot /usr/src/app/dist ./dist
+COPY --from=builder --chown=nonroot:nonroot /usr/src/app/package.json ./package.json
+COPY --from=builder --chown=nonroot:nonroot /usr/src/app/prisma.config.ts ./prisma.config.ts
+
+# Copy Prisma schema from custom location
+COPY --from=builder --chown=nonroot:nonroot /usr/src/app/src/prisma ./src/prisma
+
+# Copy generated Prisma client from custom output location (only necessary files)
+COPY --from=builder --chown=nonroot:nonroot /usr/src/app/generated ./generated
+
+# Copy GraphQL schema file (generated during build)
+COPY --from=builder --chown=nonroot:nonroot /usr/src/app/src/schema.gql ./src/schema.gql
 
 # Set production environment variables
 ENV NODE_ENV=production \
-  PORT=3000 \
+  PORT=4000 \
   TZ=America/Guatemala
 
-# Add health check to monitor application status
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:3000/ || exit 1
+# Expose port
+EXPOSE 4000
 
-# Set proper ownership for all directories to the node user
-RUN chown -R node:node /usr/src/app
-
-# Switch to non-root user for better security
-USER node
-
-# Expose the application port
-EXPOSE 3000
-
-# Start the application
-CMD ["node", "dist/main.js"]
+# Start the application (distroless uses nonroot user by default)
+CMD ["dist/main.js"]

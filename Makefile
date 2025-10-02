@@ -27,14 +27,13 @@ docker-run: ## Run the application with Docker Compose (development)
 	docker-compose -f compose.yml up -d
 
 docker-run-prod: ## Run the application with Docker Compose (production)
-	docker-compose -f compose.prod.yml up -d
+	docker-compose -f compose.yml -f compose.prod.yml up -d
 
 docker-stop: ## Stop all Docker containers
-	docker-compose -f compose.yml down
-	docker-compose -f compose.prod.yml down
+	docker-compose -f compose.yml -f compose.prod.yml down
 
 docker-logs: ## Show Docker container logs (development)
 	docker-compose -f compose.yml logs -f
 
 docker-logs-prod: ## Show production Docker container logs
-	docker-compose -f compose.prod.yml logs -f
+	docker-compose -f compose.yml -f compose.prod.yml logs -f

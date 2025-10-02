@@ -19,7 +19,16 @@ interface ValidationErrorResponse {
 export class ExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(ExceptionsFilter.name);
 
-  catch(exception: unknown, _host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const request = ctx.getRequest();
+    const url = request?.url;
+
+    // Skip logging for favicon.ico requests
+    if (url === '/favicon.ico') {
+      return;
+    }
+
     this.logger.error(`Exception caught: ${JSON.stringify(exception)}`);
 
     // Handle existing GraphQL errors

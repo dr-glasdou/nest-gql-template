@@ -4,6 +4,8 @@ import { ApolloDriver, type ApolloDriverConfig } from '@nestjs/apollo';
 import { HttpStatus, Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 
+import { envs } from './config';
+import { FaviconController } from './favicon.controller';
 import { HealthModule } from './modules';
 
 @Module({
@@ -13,6 +15,7 @@ import { HealthModule } from './modules';
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
       playground: false,
+      introspection: envs.graphqlIntrospection,
       plugins: [ApolloServerPluginLandingPageLocalDefault()],
       useGlobalPrefix: true,
       path: '/v1/gql',
@@ -24,5 +27,6 @@ import { HealthModule } from './modules';
     }),
     HealthModule,
   ],
+  controllers: [FaviconController],
 })
 export class AppModule {}
