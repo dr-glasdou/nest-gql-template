@@ -22,7 +22,10 @@ async function bootstrap() {
   app.useGlobalFilters(new ExceptionsFilter());
 
   await app.listen(envs.port);
-  logger.log(`Application is running on: ${await app.getUrl()}/v1/gql`);
+  const localUrl = await app.getUrl();
+  const portlessUrl = process.env.PORTLESS_URL;
+  logger.log(`Application is running on: ${portlessUrl ?? localUrl}`);
+  if (portlessUrl) logger.log(`Local: ${localUrl}`);
 }
 
 bootstrap().catch((error) => {

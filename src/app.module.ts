@@ -5,7 +5,6 @@ import { HttpStatus, Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 
 import { envs } from './config';
-import { FaviconController } from './favicon.controller';
 import { HealthModule } from './modules';
 
 @Module({
@@ -27,6 +26,5 @@ import { HealthModule } from './modules';
     }),
     HealthModule,
   ],
-  controllers: [FaviconController],
 })
 export class AppModule {}
