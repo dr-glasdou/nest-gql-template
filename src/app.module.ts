@@ -7,10 +7,12 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { envs } from './config';
 import { HealthModule } from './modules';
 import { PrismaModule } from './prisma';
+import { RedisModule } from './redis';
 
 @Module({
   imports: [
     PrismaModule,
+    RedisModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
