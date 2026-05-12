@@ -11,7 +11,7 @@
         "package-version-server",
         "biome",
         "json-language-server",
-        "!graphql",
+        "graphql",
         "!eslint"
       ],
       "code_actions_on_format": {

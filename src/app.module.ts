@@ -6,9 +6,11 @@ import { GraphQLModule } from '@nestjs/graphql';
 
 import { envs } from './config';
 import { HealthModule } from './modules';
+import { PrismaModule } from './prisma';
 
 @Module({
   imports: [
+    PrismaModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),

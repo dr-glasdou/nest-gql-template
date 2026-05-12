@@ -1,36 +1,36 @@
 services:
-  gql_template_pg:
-    container_name: gql_template_pg
+  gql_api_pg:
+    container_name: gql_api_pg
     image: postgres:17.6
     restart: always
     volumes:
-      - gql_pg_data:/var/lib/postgresql/data
+      - rest_pg_data:/var/lib/postgresql/data
     env_file:
       - .env
     environment:
       POSTGRES_USER: ${PG_USER:-postgres}
       POSTGRES_PASSWORD: ${PG_PASSWORD:-Abcd@1234}
-      POSTGRES_DB: ${PG_DB:-gql_template}
+      POSTGRES_DB: ${PG_DB:-rest}
     ports:
       - "5432:5432"
     networks:
-      - gql_template_network
+      - gql_api_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PG_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  gql_template_redis:
-    container_name: gql_template_redis
+  gql_api_redis:
+    container_name: gql_api_redis
     image: redis:7-alpine
     restart: always
     volumes:
-      - gql_redis_data:/data
+      - rest_redis_data:/data
     ports:
       - "6379:6379"
     networks:
-      - gql_template_network
+      - gql_api_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -38,9 +38,9 @@ services:
       retries: 5
 
 volumes:
-  gql_pg_data:
-  gql_redis_data:
+  rest_pg_data:
+  rest_redis_data:
 
 networks:
-  gql_template_network:
+  gql_api_network:
     driver: bridge

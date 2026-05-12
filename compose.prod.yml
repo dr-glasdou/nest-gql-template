@@ -1,7 +1,7 @@
 services:
   gql_template:
     container_name: gql_template
-    image: drglasdou/nest-gql.glasdou:latest
+    image: drglasdou/nest-gql:latest
     build:
       context: .
       dockerfile: dockerfile.prod

@@ -26,4 +26,9 @@ export class HealthResolver {
   testError(@Args('dto') dto: TestErrorDto): string {
     return `Received: ${dto.test}`;
   }
+
+  @Query(() => String, { name: 'checkDBConnection' })
+  checkDBConnection(): Promise<string> {
+    return this.healthService.checkDBConnection();
+  }
 }
