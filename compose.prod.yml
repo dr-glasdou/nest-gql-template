@@ -1,7 +1,7 @@
 services:
   gql_template:
     container_name: gql_template
-    image: drglasdou/gql_template:latest
+    image: drglasdou/nest-gql.glasdou:latest
     build:
       context: .
       dockerfile: dockerfile.prod
@@ -9,23 +9,17 @@ services:
     env_file:
       - .env
     environment:
-      PORT: ${PORT:-4000}
-      STAGE: ${STAGE:-prod}
-      DATABASE_URL: postgres://${PG_USER:-postgres}:${PG_PASSWORD:-Abcd@1234}@gql_template_pg:5432/${PG_DB:-gql_template_db}
-      GRAPHQL_INTROSPECTION: true
+      PG_HOST: gql_template_pg
+      REDIS_HOST: gql_template_redis
     ports:
-      - '4000:4000'
+      - "4000:4000"
     depends_on:
       gql_template_pg:
         condition: service_healthy
     networks:
       - gql_template_network
     healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'curl -f -X POST -H "Content-Type: application/json" -d ''{"query":"query HealthCheck { healthCheck { message } }"}'' http://localhost:4000/v1/gql || exit 1',
-        ]
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/v1/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5

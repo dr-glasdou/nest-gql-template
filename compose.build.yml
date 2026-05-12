@@ -1,12 +1,12 @@
 services:
-  api_version:
+  gql_template_name:
     build:
       context: .
       dockerfile: dockerfile.prod
-    image: drglasdou/gql_template:${APP_VERSION:-1.0.0}
+    image: drglasdou/nest-gql.glasdou:${APP_VERSION:-1.0.0}
 
-  api_latest:
+  gql_template_latest:
     build:
       context: .
       dockerfile: dockerfile.prod
-    image: drglasdou/gql_template:latest
+    image: drglasdou/nest-gql.glasdou:latest
